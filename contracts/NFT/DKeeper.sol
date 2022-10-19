@@ -6,7 +6,6 @@ import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 
 import "./ERC721AUpgradeable.sol";
-import "./DKeeperSigner.sol";
 
 contract DKeeperNFT is
     ERC721AUpgradeable,
