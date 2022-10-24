@@ -12,6 +12,8 @@ contract DKeeperStake is Ownable, IERC721Receiver {
     struct UserInfo {
         uint256 amount; // How many LP tokens the user has provided.
         uint256 rewardDebt; // Reward debt. See explanation below.
+        uint256 lastClaimTime; // Timestamp of last reward claim
+        uint256 lastStakeTime; // Timestamp of last stake
     }
 
     // DeepToken contract
@@ -29,8 +31,11 @@ contract DKeeperStake is Ownable, IERC721Receiver {
     // Accumulated token per share
     uint256 public accTokenPerShare;
 
+    // Staked users' NFT Id existing check
+    mapping(address => mapping(uint256 => uint256)) public userNFTs;
+
     // Staked users' NFT Ids
-    mapping(address => mapping(uint256 => bool)) public userNFTs;
+    mapping(address => uint256[]) public stakedNFTs;
 
     // Info of each user that stakes LP tokens.
     mapping(address => UserInfo) public userInfo;
@@ -107,14 +112,17 @@ contract DKeeperStake is Ownable, IERC721Receiver {
             uint256 pending = (user.amount * accTokenPerShare) / 1e12 - user.rewardDebt;
             if (pending > 0) {
                 safeDeepTransfer(msg.sender, pending);
+                user.lastClaimTime = block.timestamp;
                 emit Claimed(msg.sender, pending);
             }
         }
 
         dKeeper.safeTransferFrom(address(msg.sender), address(this), _tokenId);
         user.amount = user.amount + dKeeper.mintedPrice(_tokenId);
+        user.lastStakeTime = block.timestamp;
         totalAllocPoint += dKeeper.mintedPrice(_tokenId);
-        userNFTs[msg.sender][_tokenId] = true;
+        userNFTs[msg.sender][_tokenId] = stakedNFTs[msg.sender].length + 1;
+        stakedNFTs[msg.sender].push(_tokenId);
 
         user.rewardDebt = (user.amount * accTokenPerShare) / 1e12;
         emit Deposited(msg.sender, _tokenId, dKeeper.mintedPrice(_tokenId));
@@ -122,20 +130,28 @@ contract DKeeperStake is Ownable, IERC721Receiver {
 
     // Withdraw NFT token.
     function withdraw(uint256 _tokenId) public {
-        require(userNFTs[msg.sender][_tokenId], "Invalid NFT owner");
+        require(userNFTs[msg.sender][_tokenId] != 0, "Invalid NFT owner");
         UserInfo storage user = userInfo[msg.sender];
 
         updatePool();
         uint256 pending = (user.amount * accTokenPerShare) / 1e12 - user.rewardDebt;
         if (pending > 0) {
             safeDeepTransfer(msg.sender, pending);
+            user.lastClaimTime = block.timestamp;
             emit Claimed(msg.sender, pending);
         }
 
         user.amount = user.amount - dKeeper.mintedPrice(_tokenId);
         dKeeper.safeTransferFrom(address(this), address(msg.sender), _tokenId);
         totalAllocPoint -= dKeeper.mintedPrice(_tokenId);
-        userNFTs[msg.sender][_tokenId] = false;
+
+        // remove tokens from userInfo tokens array
+        stakedNFTs[msg.sender][userNFTs[msg.sender][_tokenId] - 1] = stakedNFTs[msg.sender][
+            stakedNFTs[msg.sender].length - 1
+        ];
+        stakedNFTs[msg.sender].pop();
+
+        userNFTs[msg.sender][_tokenId] = 0;
 
         user.rewardDebt = (user.amount * accTokenPerShare) / 1e12;
         emit Withdrawn(msg.sender, _tokenId, dKeeper.mintedPrice(_tokenId));
@@ -150,6 +166,7 @@ contract DKeeperStake is Ownable, IERC721Receiver {
         uint256 pending = (user.amount * accTokenPerShare) / 1e12 - user.rewardDebt;
         if (pending > 0) {
             safeDeepTransfer(msg.sender, pending);
+            user.lastClaimTime = block.timestamp;
             emit Claimed(msg.sender, pending);
         }
 

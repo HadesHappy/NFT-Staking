@@ -10,6 +10,7 @@ contract AirDrop is Ownable {
     struct UserInfo {
         uint256 alloc;
         uint256 rewardDebt;
+        uint256 lastClaimTime;
     }
 
     // DeepToken contract
@@ -92,6 +93,7 @@ contract AirDrop is Ownable {
         uint256 pending = (user.alloc * accTokenPerShare) / 1e6 - user.rewardDebt;
         if (pending > 0) {
             safeDeepTransfer(msg.sender, pending);
+            user.lastClaimTime = block.timestamp;
             emit Claimed(msg.sender, pending);
         }
 
@@ -136,7 +138,7 @@ contract AirDrop is Ownable {
             require(_allocs[i] != 0 && _allocs[i] <= 10, "Invalid allocation number");
             require(userInfo[_accounts[i]].alloc == 0, "Already added");
 
-            userInfo[_accounts[i]] = UserInfo(_allocs[i], 0);
+            userInfo[_accounts[i]] = UserInfo(_allocs[i], 0, 0);
             totalAllocPoint += _allocs[i];
         }
     }
